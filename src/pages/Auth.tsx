@@ -4,15 +4,62 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const formatPhoneNumber = (phone: string) => {
+    // Ensure phone number starts with +966
+    if (!phone.startsWith("+966")) {
+      return "+966" + phone.replace(/^0+/, "");
+    }
+    return phone;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement actual auth
-    navigate("/");
+    setLoading(true);
+
+    try {
+      const formattedPhone = formatPhoneNumber(phone);
+      
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          phone: formattedPhone,
+          password,
+        });
+
+        if (error) throw error;
+        navigate("/");
+      } else {
+        const { error } = await supabase.auth.signUp({
+          phone: formattedPhone,
+          password,
+        });
+
+        if (error) throw error;
+        toast({
+          title: "تم إنشاء حسابك بنجاح",
+          description: "يمكنك الآن تسجيل الدخول",
+        });
+        setIsLogin(true);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "خطأ",
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -24,12 +71,16 @@ const Auth = () => {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">البريد الإلكتروني</Label>
+            <Label htmlFor="phone">رقم الجوال</Label>
             <Input
-              id="email"
-              type="email"
-              placeholder="your@email.com"
+              id="phone"
+              type="tel"
+              placeholder="05xxxxxxxx"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               required
+              className="text-left ltr"
+              dir="ltr"
             />
           </div>
           
@@ -39,12 +90,19 @@ const Auth = () => {
               id="password"
               type="password"
               placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
+              minLength={6}
             />
           </div>
 
-          <Button className="w-full btn-primary" type="submit">
-            {isLogin ? "دخول" : "إنشاء حساب"}
+          <Button 
+            className="w-full btn-primary" 
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? "جاري التحميل..." : (isLogin ? "دخول" : "إنشاء حساب")}
           </Button>
         </form>
 
@@ -53,6 +111,7 @@ const Auth = () => {
           <button
             className="text-primary hover:underline mr-1"
             onClick={() => setIsLogin(!isLogin)}
+            type="button"
           >
             {isLogin ? "سجل الآن" : "تسجيل الدخول"}
           </button>

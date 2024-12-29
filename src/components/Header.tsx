@@ -50,7 +50,7 @@ export const Header = () => {
               <Button 
                 variant="ghost"
                 className="btn-primary"
-                onClick={() => navigate("/new-post")}
+                onClick={() => navigate("/create-post")}
               >
                 نشر
               </Button>

@@ -11,7 +11,6 @@ const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -30,18 +29,23 @@ const Auth = () => {
     try {
       const formattedPhone = formatPhoneNumber(phone);
       
+      // For now, we'll use a dummy password since Supabase requires one
+      const dummyPassword = "temporary_password_" + Math.random().toString(36);
+      
       if (isLogin) {
+        // For login, we'll use signInWithPassword but in the future this will be replaced with OTP
         const { error } = await supabase.auth.signInWithPassword({
           phone: formattedPhone,
-          password,
+          password: dummyPassword,
         });
 
         if (error) throw error;
         navigate("/");
       } else {
+        // For signup, we'll use signUp but in the future this will be replaced with OTP
         const { error } = await supabase.auth.signUp({
           phone: formattedPhone,
-          password,
+          password: dummyPassword,
         });
 
         if (error) throw error;
@@ -81,19 +85,6 @@ const Auth = () => {
               required
               className="text-left ltr"
               dir="ltr"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="password">كلمة المرور</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
             />
           </div>
 

@@ -144,59 +144,6 @@ export const Feed = () => {
     fetchLikedPosts();
   }, [toast]);
 
-  const handleLike = async (postId: number) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "تسجيل الدخول مطلوب",
-          description: "يرجى تسجيل الدخول للتفاعل مع المنشورات",
-        });
-        return;
-      }
-
-      if (likedPosts.includes(postId)) {
-        const { error } = await supabase
-          .from("likes")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("post_id", postId);
-
-        if (error) throw error;
-
-        toast({ title: "تم إلغاء الإعجاب" });
-
-        setLikedPosts((prevLikedPosts) => prevLikedPosts.filter((id) => id !== postId));
-        setPosts((prevPosts) =>
-          prevPosts.map((post) =>
-            post.id === postId ? { ...post, likes: post.likes - 1 } : post
-          )
-        );
-      } else {
-        const { error } = await supabase
-          .from("likes")
-          .insert([{ user_id: user.id, post_id: postId }]);
-
-        if (error) throw error;
-
-        toast({ title: "تم تسجيل الإعجاب" });
-
-        setLikedPosts((prevLikedPosts) => [...prevLikedPosts, postId]);
-        setPosts((prevPosts) =>
-          prevPosts.map((post) =>
-            post.id === postId ? { ...post, likes: post.likes + 1 } : post
-          )
-        );
-      }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "خطأ",
-        description: error.message,
-      });
-    }
-  };
-
   const handleReply = async (postId: number, content: string, parentReplyId?: number) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -359,17 +306,7 @@ export const Feed = () => {
             </div>
             <p className="mt-4 text-lg font-medium">{post.content}</p>
             <div className="mt-4 flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-gray-500 hover:text-red-500 ${
-                  likedPosts.includes(post.id) ? 'text-red-500' : ''
-                }`}
-                onClick={() => handleLike(post.id)}
-              >
-                <Heart className="ml-2 h-4 w-4" />
-                {post.likes}
-              </Button>
+       
               <Button
                 variant="ghost"
                 size="sm"
@@ -406,3 +343,4 @@ export const Feed = () => {
     </div>
   );
 };
+

@@ -5,23 +5,26 @@ import { Heart, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Input } from "@/components/ui/input"; // Import Input component
+import { Input } from "@/components/ui/input";
+import { motion } from "framer-motion";
 
 interface Post {
   id: number;
   content: string;
-  user_id: number;
+  user_id: string; // Change to string to match auth.users.id
   likes: number;
   created_at: string;
+  display_name?: string; // Add display_name to Post interface
 }
 
 interface Reply {
   id: number;
   content: string;
-  user_id: number;
+  user_id: string; // Change to string to match auth.users.id
   post_id: number;
-  parent_reply_id?: number; // Add parent_reply_id for nested replies
+  parent_reply_id?: number;
   created_at: string;
+  display_name?: string; // Add display_name to Reply interface
 }
 
 export const Feed = () => {
@@ -29,16 +32,16 @@ export const Feed = () => {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [likedPosts, setLikedPosts] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const [replyContent, setReplyContent] = useState<string>(""); // State for reply content
-  const [replyingTo, setReplyingTo] = useState<{ postId: number; replyId?: number } | null>(null); // State for reply target
+  const [replyContent, setReplyContent] = useState<string>("");
+  const [replyingTo, setReplyingTo] = useState<{ postId: number; replyId?: number } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchPosts = async () => {
       const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select('id, content, user_id, likes, created_at')
-        .order('created_at', { ascending: false });
+        .from("posts")
+        .select("id, content, user_id, likes, created_at")
+        .order("created_at", { ascending: false });
 
       if (postsError) {
         toast({
@@ -47,7 +50,30 @@ export const Feed = () => {
           description: postsError.message,
         });
       } else {
-        setPosts(postsData || []);
+        const postsWithDisplayName = await Promise.all(
+          postsData.map(async (post: Post) => {
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("display_name")
+              .eq("id", post.user_id)
+              .single();
+
+            if (profileError) {
+              // toast({
+              //   variant: "destructive",
+              //   title: "خطأ",
+              //   description: profileError.message,
+              // });
+              return post;
+            }
+
+            return {
+              ...post,
+              display_name: profileData.display_name,
+            };
+          })
+        );
+        setPosts(postsWithDisplayName || []);
       }
 
       setLoading(false);
@@ -55,9 +81,9 @@ export const Feed = () => {
 
     const fetchReplies = async () => {
       const { data: repliesData, error: repliesError } = await supabase
-        .from('replies')
-        .select('*')
-        .order('created_at', { ascending: true });
+        .from("replies")
+        .select("*")
+        .order("created_at", { ascending: true });
 
       if (repliesError) {
         toast({
@@ -66,7 +92,30 @@ export const Feed = () => {
           description: repliesError.message,
         });
       } else {
-        setReplies(repliesData || []);
+        const repliesWithDisplayName = await Promise.all(
+          repliesData.map(async (reply: Reply) => {
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("display_name")
+              .eq("id", reply.user_id)
+              .single();
+
+            if (profileError) {
+              // toast({
+              //   variant: "destructive",
+              //   title: "خطأ",
+              //   description: profileError.message,
+              // });
+              return reply;
+            }
+
+            return {
+              ...reply,
+              display_name: profileData.display_name,
+            };
+          })
+        );
+        setReplies(repliesWithDisplayName || []);
       }
     };
 
@@ -74,9 +123,9 @@ export const Feed = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: likesData, error: likesError } = await supabase
-          .from('likes')
-          .select('post_id')
-          .eq('user_id', user.id);
+          .from("likes")
+          .select("post_id")
+          .eq("user_id", user.id);
 
         if (likesError) {
           toast({
@@ -108,16 +157,14 @@ export const Feed = () => {
 
       if (likedPosts.includes(postId)) {
         const { error } = await supabase
-          .from('likes')
+          .from("likes")
           .delete()
-          .eq('user_id', user.id)
-          .eq('post_id', postId);
+          .eq("user_id", user.id)
+          .eq("post_id", postId);
 
         if (error) throw error;
 
-        toast({
-          title: "تم إلغاء الإعجاب",
-        });
+        toast({ title: "تم إلغاء الإعجاب" });
 
         setLikedPosts((prevLikedPosts) => prevLikedPosts.filter((id) => id !== postId));
         setPosts((prevPosts) =>
@@ -127,14 +174,12 @@ export const Feed = () => {
         );
       } else {
         const { error } = await supabase
-          .from('likes')
+          .from("likes")
           .insert([{ user_id: user.id, post_id: postId }]);
 
         if (error) throw error;
 
-        toast({
-          title: "تم تسجيل الإعجاب",
-        });
+        toast({ title: "تم تسجيل الإعجاب" });
 
         setLikedPosts((prevLikedPosts) => [...prevLikedPosts, postId]);
         setPosts((prevPosts) =>
@@ -164,20 +209,17 @@ export const Feed = () => {
       }
 
       const { error } = await supabase
-        .from('replies')
+        .from("replies")
         .insert([{ user_id: user.id, post_id: postId, content, parent_reply_id: parentReplyId }]);
 
       if (error) throw error;
 
-      toast({
-        title: "تم إضافة الرد",
-      });
+      toast({ title: "تم إضافة الرد" });
 
-      // Fetch replies again to update the list
       const { data: repliesData, error: repliesError } = await supabase
-        .from('replies')
-        .select('*')
-        .order('created_at', { ascending: true });
+        .from("replies")
+        .select("*")
+        .order("created_at", { ascending: true });
 
       if (repliesError) {
         toast({
@@ -186,11 +228,34 @@ export const Feed = () => {
           description: repliesError.message,
         });
       } else {
-        setReplies(repliesData || []);
+        const repliesWithDisplayName = await Promise.all(
+          repliesData.map(async (reply: Reply) => {
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("display_name")
+              .eq("id", reply.user_id)
+              .single();
+
+            if (profileError) {
+              toast({
+                variant: "destructive",
+                title: "خطأ",
+                description: profileError.message,
+              });
+              return reply;
+            }
+
+            return {
+              ...reply,
+              display_name: profileData.display_name,
+            };
+          })
+        );
+        setReplies(repliesWithDisplayName || []);
       }
 
-      setReplyContent(""); // Clear the reply input
-      setReplyingTo(null); // Reset the replying target
+      setReplyContent("");
+      setReplyingTo(null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -200,17 +265,24 @@ export const Feed = () => {
     }
   };
 
-  const renderReplies = (postId: number, parentReplyId?: number) => {
+  const renderReplies = (postId: number) => {
     return replies
-      .filter((reply) => reply.post_id === postId && reply.parent_reply_id === parentReplyId)
+      .filter((reply) => reply.post_id === postId)
       .map((reply) => (
-        <div key={reply.id} className={`flex flex-col gap-4 ${parentReplyId ? 'ml-12' : ''}`}>
+        <motion.div
+          key={reply.id}
+          className="flex flex-col gap-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
           <div className="flex items-start gap-4">
             <Avatar>
               <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.user_id}`} />
               <AvatarFallback>{reply.user_id[0]}</AvatarFallback>
             </Avatar>
-            <div>
+            <div className="bg-gray-100 p-3 rounded-lg shadow-md">
+              <p className="text-sm text-gray-500">{reply.display_name || reply.user_id}</p>
               <p className="text-sm text-gray-500">{new Date(reply.created_at).toLocaleString()}</p>
               <p className="mt-1">{reply.content}</p>
               <Button
@@ -224,7 +296,12 @@ export const Feed = () => {
             </div>
           </div>
           {replyingTo?.replyId === reply.id && (
-            <div className="ml-12">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="ml-12 mt-2"
+            >
               <Input
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
@@ -236,10 +313,9 @@ export const Feed = () => {
               >
                 إرسال
               </Button>
-            </div>
+            </motion.div>
           )}
-          {renderReplies(postId, reply.id)}
-        </div>
+        </motion.div>
       ));
   };
 
@@ -262,57 +338,70 @@ export const Feed = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {posts.map((post) => (
-        <Card key={post.id} className="p-6 feed-item">
-          <div className="flex items-center gap-4">
-            <Avatar>
-              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${post.user_id}`} />
-              <AvatarFallback>{post.user_id[0]}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="text-sm text-gray-500">{new Date(post.created_at).toLocaleString()}</p>
+        <motion.div
+          key={post.id}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="p-6 shadow-lg rounded-lg transition-transform hover:scale-105">
+            <div className="flex items-center gap-4">
+              <Avatar>
+                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${post.user_id}`} />
+                <AvatarFallback>{post.user_id[0]}</AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="text-sm text-gray-500">{post.display_name || post.user_id}</p>
+                <p className="text-sm text-gray-500">{new Date(post.created_at).toLocaleString()}</p>
+              </div>
             </div>
-          </div>
-          <p className="mt-4 text-lg">{post.content}</p>
-          <div className="mt-4 flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`text-gray-500 hover:text-primary ${likedPosts.includes(post.id) ? 'text-red-500' : ''}`}
-              onClick={() => handleLike(post.id)}
-            >
-              <Heart className="ml-2 h-4 w-4" />
-              {post.likes}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-500 hover:text-primary"
-              onClick={() => setReplyingTo({ postId: post.id })}
-            >
-              <MessageSquare className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-          {replyingTo?.postId === post.id && !replyingTo.replyId && (
-            <div className="mt-4">
-              <Input
-                value={replyContent}
-                onChange={(e) => setReplyContent(e.target.value)}
-                placeholder="اكتب ردك هنا..."
-              />
+            <p className="mt-4 text-lg font-medium">{post.content}</p>
+            <div className="mt-4 flex items-center gap-4">
               <Button
-                onClick={() => handleReply(post.id, replyContent)}
-                className="mt-2"
+                variant="ghost"
+                size="sm"
+                className={`text-gray-500 hover:text-red-500 ${
+                  likedPosts.includes(post.id) ? 'text-red-500' : ''
+                }`}
+                onClick={() => handleLike(post.id)}
               >
-                إرسال
+                <Heart className="ml-2 h-4 w-4" />
+                {post.likes}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-500 hover:text-primary"
+                onClick={() => setReplyingTo({ postId: post.id })}
+              >
+                <MessageSquare className="ml-2 h-4 w-4" />
               </Button>
             </div>
-          )}
-          <div className="mt-4 space-y-2">
-            {renderReplies(post.id)}
-          </div>
-        </Card>
+            {replyingTo?.postId === post.id && !replyingTo.replyId && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="mt-4"
+              >
+                <Input
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  placeholder="اكتب ردك هنا..."
+                />
+                <Button
+                  onClick={() => handleReply(post.id, replyContent)}
+                  className="mt-2"
+                >
+                  إرسال
+                </Button>
+              </motion.div>
+            )}
+            <div className="mt-4 space-y-2">{renderReplies(post.id)}</div>
+          </Card>
+        </motion.div>
       ))}
     </div>
   );
